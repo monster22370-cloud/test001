@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>商用多層次報價計算機</title>
+    <title>商用多層次報價計算機 (含日幣換算)</title>
     <style>
         :root {
             --primary-color: #2c3e50;
             --accent-color: #3498db;
+            --jpy-color: #c0392b;
             --error-color: #e74c3c;
             --border-color: #dee2e6;
             --bg-color: #f8f9fa;
@@ -23,7 +24,7 @@
         }
 
         .container {
-            max-width: 1000px;
+            max-width: 1100px;
             margin: 0 auto;
             background: #ffffff;
             padding: 30px;
@@ -63,7 +64,7 @@
             border-bottom: 1px solid var(--border-color);
             padding: 12px;
             text-align: left;
-            font-weight: 600;
+            font-size: 14px;
         }
 
         td {
@@ -91,11 +92,12 @@
             background-color: #fff5f5;
         }
 
-        .col-item { width: 40%; }
-        .col-qty { width: 15%; }
-        .col-price { width: 20%; }
+        .col-item { width: 30%; }
+        .col-qty { width: 10%; }
+        .col-price { width: 15%; }
         .col-subtotal { width: 15%; text-align: right; font-weight: 500; }
-        .col-action { width: 10%; text-align: center; }
+        .col-jpy { width: 15%; text-align: right; color: var(--jpy-color); font-weight: 500; }
+        .col-action { width: 5%; text-align: center; }
 
         /* 按鈕樣式 */
         .btn {
@@ -119,19 +121,16 @@
             font-weight: bold;
         }
 
-        .btn:hover {
-            opacity: 0.8;
-        }
-
         /* 設定區 */
         .settings-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 20px;
             background: #fcfcfc;
             padding: 20px;
             border-radius: 6px;
             margin-top: 20px;
+            border: 1px solid #eee;
         }
 
         .form-group {
@@ -165,8 +164,8 @@
         .summary-row {
             display: flex;
             justify-content: flex-end;
-            width: 300px;
-            margin-bottom: 10px;
+            width: 400px;
+            margin-bottom: 8px;
         }
 
         .summary-label {
@@ -174,12 +173,13 @@
             text-align: right;
             padding-right: 20px;
             color: #7f8c8d;
+            font-size: 14px;
         }
 
         .summary-value {
-            width: 120px;
+            width: 140px;
             text-align: right;
-            font-family: 'Courier New', Courier, monospace;
+            font-family: 'Consolas', monospace;
             font-weight: bold;
         }
 
@@ -191,10 +191,14 @@
             color: var(--accent-color);
         }
 
+        .jpy-text {
+            color: var(--jpy-color);
+        }
+
         @media print {
-            .btn-add, .btn-delete { display: none; }
+            .btn-add, .btn-delete, .settings-grid { display: none; }
             body { padding: 0; }
-            .container { box-shadow: none; }
+            .container { box-shadow: none; max-width: 100%; }
         }
     </style>
 </head>
@@ -202,7 +206,7 @@
 
 <div class="container">
     <div class="header">
-        <h1>報價明細表 <small style="font-weight: normal; font-size: 14px;">Quotation</small></h1>
+        <h1>報價明細表 <small style="font-weight: normal; font-size: 14px;">Quotation (TWD/JPY)</small></h1>
         <div class="current-date" id="dateDisplay"></div>
     </div>
 
@@ -211,18 +215,19 @@
             <tr>
                 <th class="col-item">品項名稱</th>
                 <th class="col-qty">數量</th>
-                <th class="col-price">單價</th>
-                <th class="col-subtotal">小計</th>
+                <th class="col-price">單價 (TWD)</th>
+                <th class="col-subtotal">小計 (TWD)</th>
+                <th class="col-jpy">小計 (JPY)</th>
                 <th class="col-action"></th>
             </tr>
         </thead>
         <tbody id="tableBody">
-            <!-- 初始列 -->
             <tr>
                 <td><input type="text" class="input-name" placeholder="請輸入品項"></td>
                 <td><input type="number" class="input-qty" value="1" step="any"></td>
                 <td><input type="number" class="input-price" value="0" step="any"></td>
                 <td class="col-subtotal">0</td>
+                <td class="col-jpy">¥ 0</td>
                 <td class="col-action"><button class="btn btn-delete" onclick="removeRow(this)">✕</button></td>
             </tr>
         </tbody>
@@ -231,6 +236,10 @@
     <button class="btn btn-add" onclick="addRow()">+ 新增品項</button>
 
     <div class="settings-grid">
+        <div class="form-group">
+            <label>日幣匯率 (1 TWD 兌換 JPY)</label>
+            <input type="number" id="exchangeRate" value="4.65" step="0.01">
+        </div>
         <div class="form-group">
             <label>稅率設定</label>
             <select id="taxSelect" onchange="toggleCustomTax()">
@@ -245,7 +254,7 @@
             <input type="number" id="customTaxInput" value="0" step="0.1">
         </div>
         <div class="form-group">
-            <label>折扣率 (%) - 如打九折請輸入 10</label>
+            <label>折扣率 (%)</label>
             <input type="number" id="discountInput" value="0" step="1" min="0" max="100">
         </div>
     </div>
@@ -264,27 +273,30 @@
             <span class="summary-value" id="taxAmount">0</span>
         </div>
         <div class="summary-row total-row">
-            <span class="summary-label">最終總額 (Total)</span>
+            <span class="summary-label">最終總額 (Total TWD)</span>
             <span class="summary-value" id="finalTotal">0</span>
+        </div>
+        <div class="summary-row jpy-text" style="font-size: 18px; margin-top: 5px;">
+            <span class="summary-label jpy-text">最終總額 (Total JPY)</span>
+            <span class="summary-value" id="finalTotalJPY">¥ 0</span>
         </div>
     </div>
 </div>
 
 <script>
     // 初始化日期
-    document.getElementById('dateDisplay').innerText = '日期：' + new Date().toLocaleDateString('zh-TW', {
+    document.getElementById('dateDisplay').innerText = '報價日期：' + new Date().toLocaleDateString('zh-TW', {
         year: 'numeric', month: 'long', day: 'numeric'
     });
 
-    // 格式化數字為千分位
-    function formatCurrency(num) {
-        return new Intl.NumberFormat('en-US', {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 2
+    // 格式化數字
+    function formatCurrency(num, symbol = '', isJPY = false) {
+        return symbol + new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: isJPY ? 0 : 0,
+            maximumFractionDigits: isJPY ? 0 : 2
         }).format(num);
     }
 
-    // 新增列
     function addRow() {
         const tbody = document.getElementById('tableBody');
         const tr = document.createElement('tr');
@@ -293,29 +305,26 @@
             <td><input type="number" class="input-qty" value="1" step="any"></td>
             <td><input type="number" class="input-price" value="0" step="any"></td>
             <td class="col-subtotal">0</td>
+            <td class="col-jpy">¥ 0</td>
             <td class="col-action"><button class="btn btn-delete" onclick="removeRow(this)">✕</button></td>
         `;
         tbody.appendChild(tr);
         calculate();
     }
 
-    // 刪除列
     function removeRow(btn) {
         const row = btn.parentNode.parentNode;
         if (document.querySelectorAll('#tableBody tr').length > 1) {
             row.parentNode.removeChild(row);
-            calculate();
         } else {
-            // 若剩下一列則重置內容而不刪除
             row.querySelectorAll('input').forEach(input => {
                 if(input.type === 'number') input.value = input.className === 'input-qty' ? 1 : 0;
                 else input.value = '';
             });
-            calculate();
         }
+        calculate();
     }
 
-    // 切換自訂稅率輸入
     function toggleCustomTax() {
         const select = document.getElementById('taxSelect');
         const group = document.getElementById('customTaxGroup');
@@ -323,55 +332,43 @@
         calculate();
     }
 
-    // 核心計算邏輯
     function calculate() {
-        let rawSubtotal = 0;
+        let rawSubtotalTWD = 0;
+        const rate = parseFloat(document.getElementById('exchangeRate').value) || 0;
         const rows = document.querySelectorAll('#tableBody tr');
 
         rows.forEach(row => {
             const qtyInput = row.querySelector('.input-qty');
             const priceInput = row.querySelector('.input-price');
             const subtotalDisplay = row.querySelector('.col-subtotal');
+            const jpyDisplay = row.querySelector('.col-jpy');
 
             const qty = parseFloat(qtyInput.value);
             const price = parseFloat(priceInput.value);
 
-            // 防呆驗證
             let isValid = true;
-            if (isNaN(qty) || qty < 0) {
-                qtyInput.classList.add('invalid');
-                isValid = false;
-            } else {
-                qtyInput.classList.remove('invalid');
-            }
+            if (isNaN(qty) || qty < 0) { qtyInput.classList.add('invalid'); isValid = false; } 
+            else { qtyInput.classList.remove('invalid'); }
 
-            if (isNaN(price) || price < 0) {
-                priceInput.classList.add('invalid');
-                isValid = false;
-            } else {
-                priceInput.classList.remove('invalid');
-            }
+            if (isNaN(price) || price < 0) { priceInput.classList.add('invalid'); isValid = false; } 
+            else { priceInput.classList.remove('invalid'); }
 
-            const rowTotal = isValid ? qty * price : 0;
-            subtotalDisplay.innerText = formatCurrency(rowTotal);
-            rawSubtotal += rowTotal;
+            const rowTWD = isValid ? qty * price : 0;
+            const rowJPY = Math.round(rowTWD * rate);
+
+            subtotalDisplay.innerText = formatCurrency(rowTWD);
+            jpyDisplay.innerText = formatCurrency(rowJPY, '¥ ', true);
+            
+            rawSubtotalTWD += rowTWD;
         });
 
-        // 折扣計算
+        // 折扣
         const discountPercent = parseFloat(document.getElementById('discountInput').value) || 0;
-        const discountInputEl = document.getElementById('discountInput');
-        
-        if (discountPercent < 0 || discountPercent > 100) {
-            discountInputEl.classList.add('invalid');
-        } else {
-            discountInputEl.classList.remove('invalid');
-        }
-        
         const validDiscountPercent = (discountPercent >= 0 && discountPercent <= 100) ? discountPercent : 0;
-        const discountAmount = rawSubtotal * (validDiscountPercent / 100);
-        const afterDiscount = rawSubtotal - discountAmount;
+        const discountAmountTWD = rawSubtotalTWD * (validDiscountPercent / 100);
+        const afterDiscountTWD = rawSubtotalTWD - discountAmountTWD;
 
-        // 稅金計算
+        // 稅金
         const taxSelect = document.getElementById('taxSelect');
         let taxRate = 0;
         if (taxSelect.value === 'custom') {
@@ -380,26 +377,21 @@
             taxRate = parseFloat(taxSelect.value);
         }
         
-        const taxAmount = afterDiscount * taxRate;
-        const finalTotal = afterDiscount + taxAmount;
+        const taxAmountTWD = afterDiscountTWD * taxRate;
+        const finalTotalTWD = afterDiscountTWD + taxAmountTWD;
+        const finalTotalJPY = Math.round(finalTotalTWD * rate);
 
         // 更新 UI
-        document.getElementById('rawSubtotal').innerText = formatCurrency(rawSubtotal);
+        document.getElementById('rawSubtotal').innerText = formatCurrency(rawSubtotalTWD);
         document.getElementById('discountLabel').innerText = `折扣金額 (${validDiscountPercent}%)`;
-        document.getElementById('discountAmount').innerText = `- ${formatCurrency(discountAmount)}`;
+        document.getElementById('discountAmount').innerText = `- ${formatCurrency(discountAmountTWD)}`;
         document.getElementById('taxLabel').innerText = `營業稅 (${(taxRate * 100).toFixed(1)}%)`;
-        document.getElementById('taxAmount').innerText = formatCurrency(taxAmount);
-        document.getElementById('finalTotal').innerText = formatCurrency(finalTotal);
+        document.getElementById('taxAmount').innerText = formatCurrency(taxAmountTWD);
+        document.getElementById('finalTotal').innerText = formatCurrency(finalTotalTWD);
+        document.getElementById('finalTotalJPY').innerText = formatCurrency(finalTotalJPY, '¥ ', true);
     }
 
-    // 監聽所有輸入變動
-    document.addEventListener('input', function(e) {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
-            calculate();
-        }
-    });
-
-    // 初始計算一次
+    document.addEventListener('input', calculate);
     calculate();
 </script>
 
