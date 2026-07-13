@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商用多層次報價計算機</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+            --error-color: #e74c3c;
+            --border-color: #dee2e6;
+            --bg-color: #f8f9fa;
+        }
+
+        body {
+            font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--primary-color);
+            margin: 0;
+            padding: 40px 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            letter-spacing: 1px;
+        }
+
+        .current-date {
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+
+        /* 表格樣式 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th {
+            background-color: #fcfcfc;
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #f1f1f1;
+        }
+
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        input.invalid {
+            border-color: var(--error-color) !important;
+            background-color: #fff5f5;
+        }
+
+        .col-item { width: 40%; }
+        .col-qty { width: 15%; }
+        .col-price { width: 20%; }
+        .col-subtotal { width: 15%; text-align: right; font-weight: 500; }
+        .col-action { width: 10%; text-align: center; }
+
+        /* 按鈕樣式 */
+        .btn {
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-size: 14px;
+            transition: opacity 0.2s;
+        }
+
+        .btn-add {
+            background-color: var(--primary-color);
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        .btn-delete {
+            background-color: transparent;
+            color: var(--error-color);
+            font-weight: bold;
+        }
+
+        .btn:hover {
+            opacity: 0.8;
+        }
+
+        /* 設定區 */
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            background: #fcfcfc;
+            padding: 20px;
+            border-radius: 6px;
+            margin-top: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #666;
+        }
+
+        select {
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+
+        /* 計算結果區 */
+        .summary-section {
+            margin-top: 30px;
+            border-top: 2px solid #eee;
+            padding-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: flex-end;
+            width: 300px;
+            margin-bottom: 10px;
+        }
+
+        .summary-label {
+            flex: 1;
+            text-align: right;
+            padding-right: 20px;
+            color: #7f8c8d;
+        }
+
+        .summary-value {
+            width: 120px;
+            text-align: right;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+        }
+
+        .total-row {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px double #ccc;
+            font-size: 20px;
+            color: var(--accent-color);
+        }
+
+        @media print {
+            .btn-add, .btn-delete { display: none; }
+            body { padding: 0; }
+            .container { box-shadow: none; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>報價明細表 <small style="font-weight: normal; font-size: 14px;">Quotation</small></h1>
+        <div class="current-date" id="dateDisplay"></div>
+    </div>
+
+    <table id="quoteTable">
+        <thead>
+            <tr>
+                <th class="col-item">品項名稱</th>
+                <th class="col-qty">數量</th>
+                <th class="col-price">單價</th>
+                <th class="col-subtotal">小計</th>
+                <th class="col-action"></th>
+            </tr>
+        </thead>
+        <tbody id="tableBody">
+            <!-- 初始列 -->
+            <tr>
+                <td><input type="text" class="input-name" placeholder="請輸入品項"></td>
+                <td><input type="number" class="input-qty" value="1" step="any"></td>
+                <td><input type="number" class="input-price" value="0" step="any"></td>
+                <td class="col-subtotal">0</td>
+                <td class="col-action"><button class="btn btn-delete" onclick="removeRow(this)">✕</button></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <button class="btn btn-add" onclick="addRow()">+ 新增品項</button>
+
+    <div class="settings-grid">
+        <div class="form-group">
+            <label>稅率設定</label>
+            <select id="taxSelect" onchange="toggleCustomTax()">
+                <option value="0">免稅 (0%)</option>
+                <option value="0.05">含稅 (5%)</option>
+                <option value="0.1">含稅 (10%)</option>
+                <option value="custom">自訂稅率</option>
+            </select>
+        </div>
+        <div class="form-group" id="customTaxGroup" style="display: none;">
+            <label>自訂稅率 (%)</label>
+            <input type="number" id="customTaxInput" value="0" step="0.1">
+        </div>
+        <div class="form-group">
+            <label>折扣率 (%) - 如打九折請輸入 10</label>
+            <input type="number" id="discountInput" value="0" step="1" min="0" max="100">
+        </div>
+    </div>
+
+    <div class="summary-section">
+        <div class="summary-row">
+            <span class="summary-label">小計合計 (Before Tax)</span>
+            <span class="summary-value" id="rawSubtotal">0</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label" id="discountLabel">折扣金額 (0%)</span>
+            <span class="summary-value" id="discountAmount">0</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label" id="taxLabel">營業稅 (0%)</span>
+            <span class="summary-value" id="taxAmount">0</span>
+        </div>
+        <div class="summary-row total-row">
+            <span class="summary-label">最終總額 (Total)</span>
+            <span class="summary-value" id="finalTotal">0</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 初始化日期
+    document.getElementById('dateDisplay').innerText = '日期：' + new Date().toLocaleDateString('zh-TW', {
+        year: 'numeric', month: 'long', day: 'numeric'
+    });
+
+    // 格式化數字為千分位
+    function formatCurrency(num) {
+        return new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2
+        }).format(num);
+    }
+
+    // 新增列
+    function addRow() {
+        const tbody = document.getElementById('tableBody');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="text" class="input-name" placeholder="請輸入品項"></td>
+            <td><input type="number" class="input-qty" value="1" step="any"></td>
+            <td><input type="number" class="input-price" value="0" step="any"></td>
+            <td class="col-subtotal">0</td>
+            <td class="col-action"><button class="btn btn-delete" onclick="removeRow(this)">✕</button></td>
+        `;
+        tbody.appendChild(tr);
+        calculate();
+    }
+
+    // 刪除列
+    function removeRow(btn) {
+        const row = btn.parentNode.parentNode;
+        if (document.querySelectorAll('#tableBody tr').length > 1) {
+            row.parentNode.removeChild(row);
+            calculate();
+        } else {
+            // 若剩下一列則重置內容而不刪除
+            row.querySelectorAll('input').forEach(input => {
+                if(input.type === 'number') input.value = input.className === 'input-qty' ? 1 : 0;
+                else input.value = '';
+            });
+            calculate();
+        }
+    }
+
+    // 切換自訂稅率輸入
+    function toggleCustomTax() {
+        const select = document.getElementById('taxSelect');
+        const group = document.getElementById('customTaxGroup');
+        group.style.display = select.value === 'custom' ? 'flex' : 'none';
+        calculate();
+    }
+
+    // 核心計算邏輯
+    function calculate() {
+        let rawSubtotal = 0;
+        const rows = document.querySelectorAll('#tableBody tr');
+
+        rows.forEach(row => {
+            const qtyInput = row.querySelector('.input-qty');
+            const priceInput = row.querySelector('.input-price');
+            const subtotalDisplay = row.querySelector('.col-subtotal');
+
+            const qty = parseFloat(qtyInput.value);
+            const price = parseFloat(priceInput.value);
+
+            // 防呆驗證
+            let isValid = true;
+            if (isNaN(qty) || qty < 0) {
+                qtyInput.classList.add('invalid');
+                isValid = false;
+            } else {
+                qtyInput.classList.remove('invalid');
+            }
+
+            if (isNaN(price) || price < 0) {
+                priceInput.classList.add('invalid');
+                isValid = false;
+            } else {
+                priceInput.classList.remove('invalid');
+            }
+
+            const rowTotal = isValid ? qty * price : 0;
+            subtotalDisplay.innerText = formatCurrency(rowTotal);
+            rawSubtotal += rowTotal;
+        });
+
+        // 折扣計算
+        const discountPercent = parseFloat(document.getElementById('discountInput').value) || 0;
+        const discountInputEl = document.getElementById('discountInput');
+        
+        if (discountPercent < 0 || discountPercent > 100) {
+            discountInputEl.classList.add('invalid');
+        } else {
+            discountInputEl.classList.remove('invalid');
+        }
+        
+        const validDiscountPercent = (discountPercent >= 0 && discountPercent <= 100) ? discountPercent : 0;
+        const discountAmount = rawSubtotal * (validDiscountPercent / 100);
+        const afterDiscount = rawSubtotal - discountAmount;
+
+        // 稅金計算
+        const taxSelect = document.getElementById('taxSelect');
+        let taxRate = 0;
+        if (taxSelect.value === 'custom') {
+            taxRate = (parseFloat(document.getElementById('customTaxInput').value) || 0) / 100;
+        } else {
+            taxRate = parseFloat(taxSelect.value);
+        }
+        
+        const taxAmount = afterDiscount * taxRate;
+        const finalTotal = afterDiscount + taxAmount;
+
+        // 更新 UI
+        document.getElementById('rawSubtotal').innerText = formatCurrency(rawSubtotal);
+        document.getElementById('discountLabel').innerText = `折扣金額 (${validDiscountPercent}%)`;
+        document.getElementById('discountAmount').innerText = `- ${formatCurrency(discountAmount)}`;
+        document.getElementById('taxLabel').innerText = `營業稅 (${(taxRate * 100).toFixed(1)}%)`;
+        document.getElementById('taxAmount').innerText = formatCurrency(taxAmount);
+        document.getElementById('finalTotal').innerText = formatCurrency(finalTotal);
+    }
+
+    // 監聽所有輸入變動
+    document.addEventListener('input', function(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
+            calculate();
+        }
+    });
+
+    // 初始計算一次
+    calculate();
+</script>
+
+</body>
+</html>
